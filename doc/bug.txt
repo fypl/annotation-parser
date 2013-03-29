@@ -1,0 +1,7 @@
+bug:
+/* xxx */
+code
+if(xxx)
+/* xxx */
+code
+c++的宏
