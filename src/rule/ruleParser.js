@@ -4,263 +4,222 @@ var lr  = require('../lineReader')
 var log = require('../log');
 
 module.exports=function(file, rules, Anno){
-    log('parse rule begin...');
+	log('parse rule begin...');
+	var REGEXP={
+		'TOKEN':/(id|word|line|block)-([a-zA-Z_][a-zA-Z0-9_]*)/g,
+		'EOL':/(\r|\n|\r\n)$/,
+		'ANNO_START':/^\s*\/\*+/,
+		'ANNO_END':/^\s*\*+\//,
+		'ANNO_STAR':/^\s*\*+/,
+		'EMPTY':/\s+/g,
+		'NULL_STRING':/^\s*$/,
+		'LEFT':/[\<\(\[\{]/,
+		'SINGLE_LINE_ANNO':/((?!\\)\/{2,}.*)/,
+		'TITLE_RULE':/\[title\](.*?)\[\/title\]/,
+		'SHOW_RULE':/\[show\](.*?)\[\/show\]/,
+		'STRING_RULE':/(^\!\!|@([a-zA-Z_][0-9a-zA-Z_\.]*)|\[list-([a-zA-Z_][a-zA-Z0-9_]*)\]|\[#\])/g,
+		'LIST_RULE':/(\[\/list\]|@([a-zA-Z_][0-9a-zA-Z_\.]*)|\[#\])/g,
+		'CHOOSE_RULE':/(\[\/#\]|@([a-zA-Z_][0-9a-zA-Z_\.]*))/g
+	};
+	var anno={}, lineNumber=0, isAnno=false, curRule=null, arr=null, reg=null;
+	var index=0, str='var ret="";', isNecessary=false, argArr=null, curStr='', escapeCharCount=0,
+		offset=0, valid=true, id='',
+		isList=false, listArg=null, listStr='', listArgArr=null,
+		isChoose=false, chooseArgArr=null, chooseStr='';
 	var reader=lr(file);
-	var isAnno=false,arr;
-	var regExp=/(id|word|line|block)-([a-zA-Z_][a-zA-Z0-9_]*)/g;
-	var curRule=null,lineNumber=0,string='var string="";',
-    strRegExp=/(^\!\!|(?!\\)@([0-9a-zA-Z_\.]+)|(?!\\)\[list\]|(?!\\)\[list_([a-zA-Z0-9_][a-zA-Z0-9_]*)\]|(?!\\)\[#\])/g,
-    strRegExp2=/((?!\\)\[\/list\]|(?!\\)@([a-zA-Z0-9_][0-9a-zA-Z_\.]*)|(?!\\)\[#\])/g,
-    strRegExp3=/((?!\\)\[\/#\]|(?!\\)@([a-zA-Z0-9_][0-9a-zA-Z_\.]+))/g,
-    strMarkRegExp,
-    isList=false,strArr=null,isNecessary=false,curString='',listString='',argArr=null,listArgArr=null,listArg='',
-    isChooseArg=false,chooseString='',chooseArgArr=null;
-	var unique={};
 	while(reader.hasNextLine()){
-        var line=reader.nextLine();
-        line=line.replace(/(\r|\n|\r\n)$/g,'');
-        lineNumber++;
-        if(isAnno){
-            if(line.match(/^\s*\*+\//)){
-                if(curRule)createRule(curRule, rules.annoRules);
-                curRule=null;
-                isAnno=false;
-                continue;
-            }
-            line=line.replace(/^\s*\*+/, '').replace(/\s+/g,' ').trim();
-            // 空行处理
-            if(line.match(/^\s*$/)){
-                if(curRule && curRule['$matchSign'] !== undefined && !curRule['$matchSign']){
-                    line='EOF';
-                }
-            }
-            // 解析注释
-            var markIndex=0,markExp=markExp?markExp:regExp;
-            while(arr=markExp.exec(line)){
-            	markIndex=arr.index;
-            	switch(arr[1]){
-            		case 'id':{
-            			if(curRule)createRule(curRule, rules.annoRules);
-            			var index=arr.index;
-            			var preSign=line.substring(0, index);
-            			var isArr=!!unique[arr[2]];
-            			unique[arr[2]]=true;
-            			curRule={
-            				'$preSign':preSign,
-            				'$line':'',
-            				'$id':arr[2],
-                            '$isArr':isArr
-            			}
-            			break;
-            		}
-            		case 'word':
-            		case 'line':{
-            			break;
-            		}
-            		case 'block':{
-            			if(curRule['$preSign']){
-            				var sign=curRule['$preSign'].charAt(0);
-            				if(sign.match(/[<\(\[\{]/)){
-            					curRule['$postSign']=escape(curRule['$preSign'])+'\/'+curRule['$id']+escape(averse(curRule['$preSign']));
-            				}else{
-            					curRule['$postSign']='\/'+escape(curRule['$preSign']);
-            				}
-            			}else{
-            				curRule['$postSign']='\/'+arr[2];
-            			}
-                        curRule['$postSign']+='|EOF';
-            			curRule['$matchSign']=false;
-        				markExp=new RegExp(curRule['$postSign'],'i');
-            			break;
-            		}
-            		default:{
-            			if(arr[0].match(new RegExp(curRule['$postSign'],'i'))){
-            				markExp=regExp;
-            				curRule['$matchSign']=true;
-            			}else{
-            				log.err('注释模版有错误！\n行号：'+lineNumber+'\n具体原因：遇到不匹配的符号。');
-            			}
-            		}
-            	}
-            	markExp.lastIndex=markIndex+arr[0].length;
-            }
-            curRule['$line']+=line+' ';
-        }else{
-            if(line.match(/^\s*\/\*+/)){
-                isAnno=true;
-                continue;
-            }
-            // 代码
-            // 去除单行注释
-            line=line.replace(/((?!\\)\/{2,}.*)/, '');
-            // 去除空行
-            if(line.match(/^\s*$/)) continue;
-            // 解释title
-            if(line.match(/\[title\](.*?)\[\/title\]/)) {createTitle(RegExp.$1, Anno); continue;}
-            // 解释show
-            if(line.match(/\[show\](.*?)\[\/show\]/)) {createShow(RegExp.$1, Anno); continue;}
-            // 解释toString
-            // 转义'"
-            line=line.replace(/\\/g,'\\\\').replace(/('|")/g,'\\$1')
-            if(!isList){
-                isNecessary=false;
-                argArr=[];
-                curString='';
-            }
-            strMarkRegExp=isList?strRegExp2:isChooseArg?strRegExp3:strRegExp;
-            var markIndex2=0;
-            strMarkRegExp.lastIndex=0;
-            while(strArr=strMarkRegExp.exec(line)){
-                switch(strArr[0]){
-                    case '!!':{
-                        isNecessary=true;
-                        line=line.substr(2);
-                        strMarkRegExp.lastIndex=0;
-                        break;
-                    }
-                    case '[/list]':{
-                        isList=false;
-                        strMarkRegExp=strRegExp;
-                        strMarkRegExp.lastIndex=strArr.index+strArr[0].length;
-                        listString+='string+="'+line.substring(markIndex2, strArr.index)+'";';
-                        curString+='for(var i=0,ii=this.'+listArg+'.length;i<ii;i++){'+listString+'}';
-                        //curString+='this.'+listArg+'.forEach(function(itm){'+listString+'});';
-                        break;
-                    }
-                    case '[#]':{
-                        if(isList)listString+='string+="'+line.substring(markIndex2, strArr.index)+'";';
-                        else curString+='string+="'+line.substring(markIndex2, strArr.index)+'";';
-                        if(!isChooseArg){
-                            isChooseArg=true;
-                            chooseArgArr=[];
-                            chooseString='';
-                            strMarkRegExp=strRegExp3;
-                            strMarkRegExp.lastIndex=strArr.index+strArr[0].length;
-                        }else{
-                            log.err("语法错误：[#]不匹配，存在连续的[#]。");
-                        }
-                        break;
-                    }
-                    case '[/#]':{
-                        if(isChooseArg){
-                            isChooseArg=false;
-                            chooseString+='string+="'+line.substring(markIndex2, strArr.index)+'";';
-                            chooseString=createChooseCondition(chooseArgArr)+'{'+chooseString+'}';
-                            if(isList){
-                                listString+=chooseString;
-                                strMarkRegExp=strRegExp2;
-                            }else{
-                                curString+=chooseString;
-                                strMarkRegExp=strRegExp;
-                            }
-                            chooseString='';
-                            strMarkRegExp.lastIndex=strArr.index+strArr[0].length;
-                        }else{
-                            log.err("语法错误：[/#]不匹配，[/#]不能匹配到[#]。");
-                        }
-                        break;
-                    }
-                    default:{
-                        if(strArr[0].indexOf('[list')==0){
-                            isList=true;
-                            listString='';
-                            listArgArr=[];
-                            listArg=strArr[3];
-                            strMarkRegExp=strRegExp2;
-                            strMarkRegExp.lastIndex=strArr.index+strArr[0].length;
-                            curString+='string+="'+line.substring(markIndex2, strArr.index)+'";';
-                            break;
-                        }
-                        var id=getId(strArr[2]);
-                        if(isChooseArg){
-                            chooseString+='string+="'+line.substring(markIndex2, strArr.index)+'";';
-                            if(isList)addArray(id, listArgArr);
-                            else addArray(id, argArr);
-                            if(isList && id==listArg){
-                                chooseString+='string+='+strArr[2].replace(id,'this.'+id+'[i]')+';';
-                                addArray('this.'+id+'[i]', chooseArgArr);
-                                if(id!=strArr[2]){
-                                    addArray(strArr[2].replace(id, 'this.'+id+'[i]'), chooseArgArr);
-                                }
-                            }else{
-                                chooseString+='string+='+strArr[2].replace(id,'this.'+id)+';';
-                                addArray('this.'+id, chooseArgArr);
-                                if(id!=strArr[2]){
-                                    addArray(strArr[2].replace(id,'this.'+id), chooseArgArr);
-                                }
-                            }
-                        }else if(isList){
-                            addArray(id,listArgArr);
-                            listString+='string+="'+line.substring(markIndex2, strArr.index)+'";';
-                            if(id==listArg){
-                                listString+='string+='+strArr[2].replace(id,'this.'+id+'[i]')+';';
-                                //listString+='string+='+strArr[2].replace(id,'itm')+';';
-                            }else{
-                                listString+='string+='+strArr[2].replace(id,'this.'+id)+';';
-                            }
-                        }else{
-                            addArray(id,argArr);
-                            curString+='string+="'+line.substring(markIndex2, strArr.index)+'";';
-                            curString+='string+='+strArr[2].replace(id,'this.'+id)+';';
-                        }
-                    }
-                }
-                if(strMarkRegExp.lastIndex>0)markIndex2=strArr.index+strArr[0].length;
-                else markIndex2=0;
-            }
-            if(isChooseArg){
-                chooseString+='string+="'+line.substring(markIndex2)+'";';
-            }else if(!isList){
-                curString+='string+="'+line.substring(markIndex2)+'";';
-                if(isNecessary){
-                    string+=createNecessaryCondition(argArr, listArgArr)+curString;
-                }else{
-                    string+=createCondition(argArr, listArgArr)+'{'+curString+'}';
-                }
-                listArgArr=[];argArr=[];chooseArgArr=[];
-                log.info(curString);
-            }else{
-                listString+='string+="'+line.substring(markIndex2)+'";';
-            }
-        }
-	}
-    string+='return string;';
-    log.info(string);
-    Anno.prototype.__toString=new Function(string);
-    log('parse rule end!!!\n');
-}
-/*
- * 为可选属性创造条件
- */
-function createChooseCondition(arr){
-    var ret='if(';
-    if(arr.length==0)ret+='true';
-    else ret+=arr.join(' && ');
-    ret+=')';
-    return ret;
+		// 去掉尾巴上可能的回车换行符
+		var line = reader.nextLine().replace(REGEXP.EOL,'');
+		lineNumber++;
+		if(isAnno){
+			if(line.match(REGEXP.ANNO_END)){
+				// 注释结束 生成所有规则
+				createRules(anno, rules.annoRules);
+				curRule=null;
+				isAnno=false;
+			}else{
+				// 去掉注释前的连续* 合并空格
+				line=line.replace(REGEXP.ANNO_STAR,'').replace(REGEXP.EMPTY,' ').trim();
+				// 支持空行断多行注释 所以需要在此进行空行处理
+				if(line.match(REGEXP.NULL_STRING)){
+					if(curRule && curRule.close === false) line='EOF';
+				}
+				// 解析注释 提取部分属性
+				if(!reg) reg=REGEXP.TOKEN;
+				reg.lastIndex=0;
+				while(arr=reg.exec(line)){
+					switch(arr[1]){
+						case 'id':{
+							curRule={
+								'id':arr[2],
+								'line':'',
+								'prefix':line.substring(0, arr.index),
+								'multi':!!anno[arr[2]],
+								'multiRule':false,
+								'property':{}
+							}
+							anno[arr[2]]=curRule;
+							break;
+						}
+						case 'word':
+						case 'line':{
+							break;
+						}
+						case 'block':{
+							curRule.multiRule=true;
+							if(curRule.prefix){
+								if(curRule.prefix.charAt(0).match(REGEXP.LEFT))
+									curRule.suffix=escape(curRule.prefix)+'\/'+curRule.id+escape(averse(curRule.prefix));
+								else
+									curRule.suffix='\/'+escape(curRule.prefix);
+							}else{
+								curRule.suffix='\/'+arr[2];
+							}
+							curRule.suffix+='|EOF';
+							curRule.close=false;
+							reg=new RegExp(curRule.suffix,'i');
+							break;
+						}
+						default:{
+							reg=REGEXP.TOKEN;
+							curRule.close=true;
+						}
+					}
+					reg.lastIndex=arr.index+arr[0].length;
+				}
+				curRule.line+=line+' ';
+			}
+		}else{
+			if(line.match(REGEXP.ANNO_START)) isAnno=true;
+			else{
+				// 代码
+				// 去除单行注释
+				line=line.replace(REGEXP.SINGLE_LINE_ANNO,'');
+				// 非空判断
+				if(!line.match(REGEXP.NULL_STRING)){
+					// 解释title
+					if(line.match(REGEXP.TITLE_RULE)) createTitle(RegExp.$1, Anno);
+					// 解释show
+					else if(line.match(REGEXP.SHOW_RULE)) createShow(RegExp.$1, Anno);
+					// 解释toString
+					else{
+						// 转义'"
+						line=line.replace(/\\/g,'\\\\').replace(/('|")/g,'\\$1')
+						if(!isList){
+							isNecessary=false;
+							argArr=[];
+							curStr='';
+						}
+						reg=isList?REGEXP.LIST_RULE:isChoose?REGEXP.CHOOSE_RULE:REGEXP.STRING_RULE;
+						reg.lastIndex=index=0;
+						while(arr=reg.exec(line)){
+							escapeCharCount=line.match(/(\\*$)/)[1].length;
+							offset=Math.ceil(escapeCharCount/2);
+							valid=escapeCharCount%2==0?true:false;
+							if(valid){
+								switch(arr[1]){
+									case '!!':{
+										isNecessary=true;
+										break;
+									}
+									case '[/list]':{
+										isList=false;
+										listStr+=validStr(line.substring(index, arr.index-offset));
+										curStr+=createCondition(listArgArr)+'{for(var __i=0,__ii=this.'+listArg+'.length;__i<__ii;__i++){'+listStr+'}}';
+										reg=REGEXP.STRING_RULE;
+										break;
+									}
+									case '[#]':{
+										isChoose=true;
+										(isList ? listStr+=validStr(line.substring(0, arr.index-offset)) : curStr+=validStr(line.substring(0, arr.index-offset)));
+										chooseArgArr=[];
+										chooseStr='';
+										reg=REGEXP.CHOOSE_RULE;
+										break;
+									}
+									case '[/#]':{
+										isChoose=false;
+										chooseStr+=validStr(line.substring(index, arr.index-offset));
+										chooseStr=createCondition(chooseArgArr)+'{'+chooseStr+'}';
+										if(isList){
+											listStr+=chooseStr;
+											reg=REGEXP.LIST_RULE;
+										}else{
+											curStr+=chooseStr;
+											reg=REGEXP.STRING_RULE;
+										}
+										break;
+									}
+									default:{
+										if(arr[0].indexOf('[list')==0){
+											curStr+=validStr(line.substring(index, arr.index-offset));
+											isList=true;
+											listStr='';
+											listArg=arr[3];
+											listArgArr=[];
+											addArray('this.'+listArg, listArgArr);
+											reg=REGEXP.LIST_RULE;
+											break;
+										}
+										id=getId(arr[2]);
+										(isChoose ? chooseStr+=validStr(line.substring(index, arr.index-offset)) : isList ? listStr+=validStr(line.substring(index, arr.index-offset)) : curStr+=validStr(line.substring(index, arr.index-offset)));
+										if(isChoose){
+											if(isList && id==listArg){
+												chooseStr+=validStr(arr[2].replace(id, 'this.'+id+'[__i]'), true);
+												addArray('this.'+id+'[__i]', chooseArgArr);
+												if(id!==arr[2]) addArray(arr[2].replace(id, 'this.'+id+'[__i]'), chooseArgArr);
+											}else{
+												chooseStr+=validStr(arr[2].replace(id, 'this.'+id), true);
+												addArray('this.'+id, chooseArgArr);
+												if(id!==arr[2]) addArray(arr[2].replace(id, 'this.'+id), chooseArgArr);
+											}
+										}else if(isList){
+											addArray('this.'+id, listArgArr);
+											if(id===listArg) listStr+=validStr(arr[2].replace(id, 'this.'+id+'[__i]'), true);
+											else listStr+=validStr(arr[2].replace(id, 'this.'+id), true);
+										}else{
+											addArray('this.'+id, argArr);
+											curStr+=validStr(arr[2].replace(id, 'this.'+id), true);
+										}
+									}
+								}
+							}else{
+								(isChoose ? chooseStr+=validStr(line.substring(index, arr.index-offset)+arr[0]) : isList ? listStr+=validStr(line.substring(index, arr.index-offset)+arr[0]) : curStr+=validStr(line.substring(index, arr.index-offset)+arr[0]));
+							}
+							reg.lastIndex=index=arr.index+arr[0].length;
+						}
+						(isChoose ? chooseStr+=validStr(line.substring(index)) : isList ? listStr+=validStr(line.substring(index)) : curStr+=validStr(line.substring(index)));
+						if(!isList && !isChoose){
+							if(isNecessary) str+=createNecessaryCondition(argArr)+curStr;
+							else str+=createCondition(argArr)+'{'+curStr+'}';
+							log.info(curStr+'\n');
+						}
+					}
+				}
+			}
+		}
+	} 
+	str+='return ret;';
+	log.info(str);
+	Anno.prototype.__toString=new Function(str);
+	log('parse rule end!!!\n');
 }
 /*
  * 为necessary创造条件
  */
-function createNecessaryCondition(arr1, arr2){
+function createNecessaryCondition(arr){
     var ret='';
-    var arr=(arr1 && arr2)? arr1.concat(arr2) : (!arr1 && !arr2)? []: arr1 || arr2;
     arr.forEach(function(itm){
-        ret+='if(!this.'+itm+')this.'+itm+'={};';
+        ret+='if(!'+itm+')'+itm+'={};';
     });
     return ret;
 }
 /*
  * 创造条件
  */
-function createCondition(arr1, arr2){
+function createCondition(arr){
     var ret='if(';
-    var arr=(arr1 && arr2)? arr1.concat(arr2) : (!arr1 && !arr2)? []: arr1 || arr2;
-    var tmp=[];
-    arr.forEach(function(itm){
-        tmp.push('this.'+itm);
-    });
-    if(tmp.length>0)ret+=tmp.join(' && ');
+    if(arr.length>0)ret+=arr.join(' && ');
     else ret+='true';
     ret+=')';
     return ret;
@@ -270,7 +229,7 @@ function createCondition(arr1, arr2){
  */
 function addArray(itm, arr){
     for(var i=0,ii=arr.length;i<ii;i++){
-        if(arr[i]==itm)return;
+        if(arr[i]===itm)return;
     }
     arr.push(itm);
 }
@@ -283,7 +242,14 @@ function getId(str){
     else id=str;
     return id;
 }
-
+/*
+ * 获得有效的代码
+ */
+function validStr(line, isCode){
+	var ret='';
+	if(line)ret=isCode?'ret+='+line+';':'ret+="'+line+'";';
+	return ret;
+}
 /*
  * 生成show函数
  */
@@ -296,12 +262,12 @@ function createShow(str, Anno){
             if(itm.match(/^(\!+)(.*)$/)){
                 var a1=RegExp.$1,a2=RegExp.$2;
                 if(a1.length%2==1){
-                    tmp.push('!this["'+a2+'"]');
+                    tmp.push('!this.'+a2);
                 }else{
-                    tmp.push('this["'+a2+'"]');
+                    tmp.push('this.'+a2);
                 }
             }else{
-                tmp.push('this["'+itm+'"]');
+                tmp.push('this.'+itm);
             }
         }
     });
@@ -310,7 +276,6 @@ function createShow(str, Anno){
     else fun='return '+tmp.join(' || ')+';';
     Anno.prototype.show=new Function(fun);
 }
-
 /*
  * 生成获取title的函数
  */
@@ -328,98 +293,89 @@ function createTitle(str, Anno){
     else fun='return '+tmp.join(' || ')+';'
     Anno.prototype.__getTitle=new Function(fun);
 }
-
 /*
- * 创建一条规则 并添加到rules中去
+ * 具体生成规则代码
  */
-function createRule(curRule, annoRules){
-	var line=escape(curRule['$line'])
-	var arr=null,index=0;
-	var regExp=/((id|word|line|block)-([a-zA-Z_][a-zA-Z0-9_]*))|((?!\\)#)|((^|\s+)(EOF\b))/g;
-	var markIndex=0;
-	var multiRule=false;
-    var id=curRule['$id'];
-	var isArr=curRule['$isArr'];
-    var isChooseArg=false,chooseArgLine='',chooseMarkIndex=0,chooseArg='';
-    var keepBottomNullString=false;
-	regExp.lastIndex=0;
+function createRule(rule, annoRules){
+	var line=escape(rule.line);
 	var CONST_STR={
 		'word':'(\\S+)',
 		'line':'(.*)',
 		'block':'([\u0000-\uffff]*?)',
         'whitespace':'\\s*',
         'eof':'(\\n[ \\t]*){2,}'
-	}
-	var queue=[];
-	while(arr=regExp.exec(line)){
-		markIndex=arr.index;
+	};
+	var REGEXP=/((id|word|line|block)-([a-zA-Z_][a-zA-Z0-9_]*))|(#)|(\s+(EOF\b))/g;
+	var arr=null, index=0, args=[], isChooseArg=false, chooseArg=[], chooseArgLine='', chooseIndex=0, escapeCharCount=0, offset=0,
+		keepBottomNullString=false;
+	while(arr=REGEXP.exec(line)){
+		index=arr.index;
 		switch(arr[2]){
 			case 'id':
 			case 'word':
 			case 'line':
 			case 'block':{
-				if(arr[2]!='id'){
-                    if(isChooseArg)queue.push(arr[3]+'Exist');
-                    queue.push(arr[3]);
-                }
-                if(arr[2]=='id'){
-                    line=line.replace(arr[0],arr[3]);
-                    regExp.lastIndex=markIndex+arr[3].length;
-                }else{
-                    if(isChooseArg){
-                        chooseArg=arr[3];
-                        chooseArgLine+=line.substring(chooseMarkIndex, markIndex)+CONST_STR[arr[2]];
-                        line=line.substring(0, chooseMarkIndex)+line.substring(markIndex+arr[0].length);
-                        regExp.lastIndex=chooseMarkIndex;
-                    }else{
-                        line=line.replace(arr[0],CONST_STR[arr[2]]);
-        				regExp.lastIndex=markIndex+CONST_STR[arr[2]].length;
-                    }
-                }
-				if(arr[2]=='block')multiRule=true;
+				if(arr[2]=='id'){
+					line=line.replace(arr[0], arr[3]);
+					REGEXP.lastIndex=index+arr[3].length;
+				}else{
+					rule.property[arr[3]]={'option':false};
+					if(isChooseArg){
+						rule.property[arr[3]].option=true;
+						args.push(arr[3]+'Exist');
+						args.push(arr[3]);
+						chooseArg=arr[3];
+						chooseArgLine+=line.substring(chooseIndex, index)+CONST_STR[arr[2]];
+						line=line.substring(0, chooseIndex)+line.substring(index+arr[0].length);
+						REGEXP.lastIndex=chooseIndex;
+					}else{
+						args.push(arr[3]);
+						line=line.replace(arr[0], CONST_STR[arr[2]]);
+						REGEXP.lastIndex=index+CONST_STR[arr[2]].length;
+					}
+				}
 				break;
 			}
 			default:{
-                if(arr[4]=='#'){
-                    if(!isChooseArg){
-                        isChooseArg=true;
-                        chooseArgLine='';
-                        chooseArg='';
-                        chooseMarkIndex=markIndex;
-                        line=line.substring(0, markIndex)+line.substring(markIndex+1);
-                        regExp.lastIndex=markIndex;
-                    }else{
-                        chooseArgLine+=line.substring(chooseMarkIndex, markIndex);
-                        chooseArgLine='('+chooseArgLine+')?';
-                        if(!chooseArg){
-                            chooseArg='';
-                            log.err('注释中的##中没有可选属性！');
-                        }
-                        chooseArg='';
-                        line=line.substring(0, chooseMarkIndex)+chooseArgLine+line.substring(markIndex+1);
-                        regExp.lastIndex=chooseMarkIndex+chooseArgLine.length;
-                        isChooseArg=false;
-                    }
-                }else if(arr[7]=='EOF'){
-                    line=line.replace(arr[0],CONST_STR['eof']);
-                    regExp.lastIndex=markIndex+CONST_STR['eof'].length;
-                    keepBottomNullString=true;
-                }else{
-                    log.err("createRule err!");
-                }
+				if(arr[4]=='#' && line.substring(0, index).match(/(\\*$)/)){
+					escapeCharCount=RegExp.$1.length/2;
+					offset=Math.ceil(escapeCharCount/2);
+					if(escapeCharCount%2==0){
+						if(isChooseArg){
+							chooseArgLine+=line.substring(chooseIndex, index-offset*2);
+							chooseArgLine='('+chooseArgLine+')?';
+							if(!chooseArg){
+								chooseArgLine='';
+								log.warn('##中没有可选属性，##中的东西将被忽略');
+							}
+							line=line.substring(0, chooseIndex)+chooseArgLine+line.substring(index+1);
+							REGEXP.lastIndex=chooseIndex+chooseArgLine.length;
+							isChooseArg=false;
+						}else{
+							isChooseArg=true;
+							chooseArg='';
+							chooseArgLine='';
+							chooseIndex=index-offset*2;
+							line=line.substring(0, chooseIndex)+line.substring(index+1);
+							REGEXP.lastIndex=chooseIndex;
+						}
+					}else{
+						line=line.substring(0, index-offset*2)+line.substring(index);
+						REGEXP.lastIndex=index-offset*2+1;
+					}
+				}else if(arr[6]=='EOF'){
+					line=line.replace(arr[0], CONST_STR['eof']);
+					REGEXP.lastIndex=index+CONST_STR['eof'].length;
+					keepBottomNullString=true;
+				}
 			}
 		}
 	}
-    // 填上前空白
-    if(line.charAt(0)!==' ')line=' '+line;
-    line=line.replace(/[ ]+/g,CONST_STR['whitespace']);
-    if(multiRule){
-        var indexOfId=line.indexOf(id)+id.length;
-        var line2='(.*)'+line.substring(0,indexOfId)+'\\+'+line.substring(indexOfId);
-        line2=new RegExp(line2,'im');
-    }
-    line=new RegExp(line,'i'+(multiRule?'m':''));
-    /*
+	// 统一在前面加上空白
+	line=' '+line;
+	line=line.replace(/[ ]+/g, CONST_STR['whitespace']);
+	var reg=null, funArgs='', funHead='', funBody='', handler=null;
+	/*
      * 可重复样本
      * function(anno, property1, property2...){
      *     if(!anno[id])anno[id]=[];
@@ -437,49 +393,41 @@ function createRule(curRule, annoRules){
      *     tmp["property2"]=property2;
      * }
      */
-    var fun='';
-	if(isArr)fun+='if(!anno["'+id+'"])anno["'+id+'"]=[];var tmp={};anno["'+id+'"].push(tmp);';
-    else fun+='var tmp={};anno["'+id+'"]=tmp;';
-	for(var i=0,ii=queue.length;i<ii;i++){
-		fun+='if('+queue[i]+')tmp["'+queue[i]+'"]='+queue[i]+';';
-	}
-    if(multiRule){
-        var fun2=fun+'if(title)tmp["title"]=title;';
-    }
-    var args='anno'+(queue.length==0 ?'':', '+queue.join(', '));
-    if(multiRule){
-        var args2='anno, title'+(queue.length==0 ?'':', '+queue.join(', '));
-    }
-	var handler = new Function(args, fun);
-    if(multiRule){
-        var handler2=new Function(args2, fun2);
-    }
-    log.info('rule:'+line);
-    log.info('handler:'+handler);
-	if(!isArr){
-        annoRules.push({'rule':line,'handler':handler,'multiline':line.multiline,'keepBottomNullString':keepBottomNullString});
-        if(multiRule)annoRules.push({'rule':line2,'handler':handler2,'multiline':line2.multiline,'keepBottomNullString':keepBottomNullString});
-    }else{
-        for(var i=annoRules.length-1;i>-1;i--){
-            var itm=annoRules[i];
-            if(itm.rule.toString()==line.toString()){
-                itm.handler=handler;
-                break;
-            }
-        }
-        if(multiRule){
-            for(i=annoRules.length-1;i>-1;i--){
-                var itm=annoRules[i];
-                if(itm.rule.toString()==line2.toString()){
-                    itm.handler=handler2;
-                    break;
-                }
-            }
-        }
+    reg=new RegExp(line, rule.multiRule?'im':'i');
+    funArgs='anno'+(args.length===0?'':', '+args.join(', '));
+    if(rule.multi) funHead='if(!anno["'+rule.id+'"])anno["'+rule.id+'"]=[];var __tmp={};anno["'+rule.id+'"].push(__tmp);';
+    else funHead='var __tmp={};anno["'+rule.id+'"]=__tmp;';
+    args.forEach(function(property){
+    	funBody+='if(!!'+property+')__tmp["'+property+'"]='+property+';';
+    });
+    handler=new Function(funArgs, funHead+funBody);
+    annoRules.push({'rule':reg,'handler':handler,'multiline':rule.multi,'keepBottomNullString':keepBottomNullString});
+    log.info(line);
+    log.info(handler.toString()+'\n');
+    // 如果是多行规则 扩展+的支持
+    if(rule.multiRule){
+    	var indexOfId=-1, line2='', reg2=null, funArgs2='', funHead2='', funBody2='', handler2=null;
+    	indexOfId=line.indexOf(rule.id)+rule.id.length;
+    	line2='(.*)'+line.substring(0,indexOfId)+'\\+'+line.substring(indexOfId);
+    	reg2=new RegExp(line2, 'im');
+    	funArgs2='anno, title'+(args.length===0?'':', '+args.join(', '));
+    	funHead2=funHead;
+    	funBody2='if(title)__tmp["title"]=title;'+funBody;
+    	handler2=new Function(funArgs2, funHead2+funBody2);
+    	annoRules.push({'rule':reg2,'handler':handler2,'multiline':rule.multi,'keepBottomNullString':keepBottomNullString});
     }
 }
-
-// 反转符号 <({[#@ => @#]})>
+/*
+ * 统一生成所有的规则
+ */
+function createRules(anno, annoRules){
+	for(var x in anno){
+		createRule(anno[x], annoRules);
+	}
+}
+/*
+ * 反转符号 <({[#@ => @#]})>
+ */
 function averse(str){
 	var ret='';
 	for(var i=str.length-1;i>-1;i--){
@@ -494,8 +442,9 @@ function averse(str){
 	}
 	return ret;
 }
-
-// 给正则式中有特殊含义的字符进行转义^$.*+?=!:|\/()[]{}
+/*
+ * 给正则式中有特殊含义的字符进行转义^$.*+?=!:|\/()[]{}
+ */
 function escape(str){
     return str.replace(/\\/g, '\\\\').replace(/([\^\$\.\*\+\?\=\!\:\|\/\(\)\[\]\{\}])/g, '\\$1');
 }

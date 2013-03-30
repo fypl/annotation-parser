@@ -35,8 +35,8 @@
 <p>type: @type.type</p>
 <p>const: @const.con</p>
 <p>return: @return.type @return.desc</p>
-<ul>[list_param]<li>param-type: @param.type; param-desc:param.desc</li>[/list]</ul>
-[list_code]
+<ul>[list-param]<li>param-type: @param.type; param-desc:param.desc</li>[/list]</ul>
+[list-code]
 	[#]<p>title:@code.title</p>[/#]
 	[#]<p>type:@code.type</p>[/#]
 	<pre>@code.cnt</pre>
