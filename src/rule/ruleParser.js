@@ -123,7 +123,7 @@ module.exports=function(file, rules, Anno){
 						reg=isList?REGEXP.LIST_RULE:isChoose?REGEXP.CHOOSE_RULE:REGEXP.STRING_RULE;
 						reg.lastIndex=index=0;
 						while(arr=reg.exec(line)){
-							escapeCharCount=line.substring(0, arr.index).match(/(\\*$)/)[1].length/2;
+							escapeCharCount=line.substring(index, arr.index).match(/(\\*$)/)[1].length/2;
 							offset=Math.ceil(escapeCharCount/2)*2;
 							valid=escapeCharCount%2==0?true:false;
 							if(valid){
@@ -141,7 +141,7 @@ module.exports=function(file, rules, Anno){
 									}
 									case '[#]':{
 										isChoose=true;
-										(isList ? listStr+=validStr(line.substring(0, arr.index-offset)) : curStr+=validStr(line.substring(0, arr.index-offset)));
+										(isList ? listStr+=validStr(line.substring(index, arr.index-offset)) : curStr+=validStr(line.substring(index, arr.index-offset)));
 										chooseArgArr=[];
 										chooseStr='';
 										reg=REGEXP.CHOOSE_RULE;
@@ -163,7 +163,7 @@ module.exports=function(file, rules, Anno){
 									default:{
 										if(arr[0].indexOf('[list')==0){
 											// 语法检测
-											if(!anno[arr[3]].multi) log.err('行号：'+lineNumber+'\n'+arr[3]+'不是可重复出现的属性');
+											if(!anno[arr[3]] || !anno[arr[3]].multi) log.err('行号：'+lineNumber+'\n'+arr[3]+'不是可重复出现的属性');
 											curStr+=validStr(line.substring(index, arr.index-offset));
 											isList=true;
 											listStr='';
@@ -413,7 +413,8 @@ function createRule(rule, annoRules){
     reg=new RegExp(line, rule.multiRule?'im':'i');
     funArgs='anno'+(args.length===0?'':', '+args.join(', '));
     if(rule.multi) funHead='if(!anno["'+rule.id+'"])anno["'+rule.id+'"]=[];var __tmp={};anno["'+rule.id+'"].push(__tmp);';
-    else funHead='var __tmp={};anno["'+rule.id+'"]=__tmp;';
+    else if(args.length>0)funHead='var __tmp={};anno["'+rule.id+'"]=__tmp;';
+    else funHead='anno["'+rule.id+'"]=true;';
     args.forEach(function(property){
     	funBody+='if(!!'+property+')__tmp["'+property+'"]='+property+';';
     });

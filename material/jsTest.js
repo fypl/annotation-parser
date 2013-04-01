@@ -5,7 +5,7 @@ x=[1,
 3,
 5]
 /* h3 */
-,X=Function(S,D,D,){
+,X=Function(S,D,D,s){
 	XXX
 }
 /* H4 */

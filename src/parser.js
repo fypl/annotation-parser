@@ -392,10 +392,10 @@ function getFirstSemicolonIndex(code, begin, extname){
  */
 function getValidCode2(code, begin, extname){
     var REGEXP={
-        MARK0:/(\=|\,|\;|\(|\)|\[|\]|\'|\"|\/)/g,
+        MARK0:/(\=|\,|\;|\(|\)|\[|\]|\'|\"|\/|\{|\})/g,
         MARK1:/(\'|\")/g,
         MARK2:/(\/)/g,
-        MARK3:/(\S)/
+        MARK3:/(\S)/g
     }
     var isStr=false, strChar='', isRegExp=false, left=0, arr=null, index=0, reg=null, matched=false, matchIndex=-1, strCount=0, hasEqualSign=false;
     // ,b=3 去除前面的,
@@ -425,12 +425,14 @@ function getValidCode2(code, begin, extname){
                         break;
                     }
                     case '(':
-                    case '[':{
+                    case '[':
+                    case '{':{
                         if(!hasEqualSign) matched=true;
                         left++;break;
                     }
                     case ')':
-                    case ']':{
+                    case ']':
+                    case '}':{
                         left--;break;
                     }
                     case '\'':
@@ -500,7 +502,7 @@ function getValidCode2(code, begin, extname){
  */
 function getValidCode(code, begin, extname){
     var REGEXP={
-        MARK0:/(\=|\,|\;|\(|\)|\[|\]|\'|\")/g,
+        MARK0:/(\=|\,|\;|\(|\)|\[|\]|\'|\"|\{|\})/g,
         MARK1:/(\'\")/g,
         MARK2:/(\S)/g
     };
@@ -526,13 +528,15 @@ function getValidCode(code, begin, extname){
                 break;
             }
             case '(':
-            case '[':{
+            case '[':
+            case '{':{
                 // 没有= 不可能有([
                 if(!hasEqualSign) matched=true;
                 left++;break;
             }
             case ')':
-            case ']':{
+            case ']':
+            case '}':{
                 left--;break;
             }
             case '\'':

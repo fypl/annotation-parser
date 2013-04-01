@@ -11,7 +11,7 @@ module.exports={
 	// 当自定义规则存在时 默认规则不生效
 	'rule_module':'smart',
 	// 智能模式下 自定义规则的文件
-	'smart_user_rule':'./rule/default.js',
+	'smart_user_rule':'./rule/template.js',
 	// 智能模式下 默认规则的文件
 	'smart_default_rule':'./rule/default.js',
 	// 默认模式下 自定义规则的文件
