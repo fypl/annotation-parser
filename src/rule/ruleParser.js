@@ -33,8 +33,18 @@ module.exports=function(file, rules, Anno){
 		lineNumber++;
 		if(isAnno){
 			if(line.match(REGEXP.ANNO_END)){
+				// 语法检测
+				if(curRule.multiRule && !curRule.close){
+					log.err('行号：'+lineNumber+'\n多行注释('+curRule.line+')定义未闭合，需要的结尾为'+curRule.suffix);
+				}
 				// 注释结束 生成所有规则
 				createRules(anno, rules.annoRules);
+				// 填充默认属性desc,__lev,__titile,__code,__subAnnos
+				anno['desc']={'id':'desc','line':'','prefix':'','multi':false,'multiRule':false,'property':{}};
+				anno['__lev']={'id':'__lev','line':'','prefix':'','multi':false,'multiRule':false,'property':{}};
+				anno['__title']={'id':'__title','line':'','prefix':'','multi':false,'multiRule':false,'property':{}};
+				anno['__code']={'id':'__code','line':'','prefix':'','multi':false,'multiRule':false,'property':{}};
+				anno['__subAnnos']={'id':'__subAnnos','line':'','prefix':'','multi':true,'multiRule':false,'property':{}};
 				curRule=null;
 				isAnno=false;
 			}else{
@@ -113,8 +123,8 @@ module.exports=function(file, rules, Anno){
 						reg=isList?REGEXP.LIST_RULE:isChoose?REGEXP.CHOOSE_RULE:REGEXP.STRING_RULE;
 						reg.lastIndex=index=0;
 						while(arr=reg.exec(line)){
-							escapeCharCount=line.match(/(\\*$)/)[1].length;
-							offset=Math.ceil(escapeCharCount/2);
+							escapeCharCount=line.substring(0, arr.index).match(/(\\*$)/)[1].length/2;
+							offset=Math.ceil(escapeCharCount/2)*2;
 							valid=escapeCharCount%2==0?true:false;
 							if(valid){
 								switch(arr[1]){
@@ -152,6 +162,8 @@ module.exports=function(file, rules, Anno){
 									}
 									default:{
 										if(arr[0].indexOf('[list')==0){
+											// 语法检测
+											if(!anno[arr[3]].multi) log.err('行号：'+lineNumber+'\n'+arr[3]+'不是可重复出现的属性');
 											curStr+=validStr(line.substring(index, arr.index-offset));
 											isList=true;
 											listStr='';
@@ -162,6 +174,8 @@ module.exports=function(file, rules, Anno){
 											break;
 										}
 										id=getId(arr[2]);
+										// 语法检测
+										if(!anno[id]) log.err('行号：'+lineNumber+'\n未定义的属性'+id);
 										(isChoose ? chooseStr+=validStr(line.substring(index, arr.index-offset)) : isList ? listStr+=validStr(line.substring(index, arr.index-offset)) : curStr+=validStr(line.substring(index, arr.index-offset)));
 										if(isChoose){
 											if(isList && id==listArg){
@@ -199,6 +213,9 @@ module.exports=function(file, rules, Anno){
 			}
 		}
 	} 
+	// 语法检测
+	if(isChoose) log.err('行号：'+lineNumber+'\nchoose未闭合。');
+	if(isList) log.err('行号：'+lineNumber+'\nlist('+listArg+')未闭合');
 	str+='return ret;';
 	log.info(str);
 	Anno.prototype.__toString=new Function(str);
@@ -339,10 +356,10 @@ function createRule(rule, annoRules){
 			default:{
 				if(arr[4]=='#' && line.substring(0, index).match(/(\\*$)/)){
 					escapeCharCount=RegExp.$1.length/2;
-					offset=Math.ceil(escapeCharCount/2);
+					offset=Math.ceil(escapeCharCount/2)*2;
 					if(escapeCharCount%2==0){
 						if(isChooseArg){
-							chooseArgLine+=line.substring(chooseIndex, index-offset*2);
+							chooseArgLine+=line.substring(chooseIndex, index-offset);
 							chooseArgLine='('+chooseArgLine+')?';
 							if(!chooseArg){
 								chooseArgLine='';
@@ -355,13 +372,13 @@ function createRule(rule, annoRules){
 							isChooseArg=true;
 							chooseArg='';
 							chooseArgLine='';
-							chooseIndex=index-offset*2;
+							chooseIndex=index-offset;
 							line=line.substring(0, chooseIndex)+line.substring(index+1);
 							REGEXP.lastIndex=chooseIndex;
 						}
 					}else{
-						line=line.substring(0, index-offset*2)+line.substring(index);
-						REGEXP.lastIndex=index-offset*2+1;
+						line=line.substring(0, index-offset)+line.substring(index);
+						REGEXP.lastIndex=index-offset+1;
 					}
 				}else if(arr[6]=='EOF'){
 					line=line.replace(arr[0], CONST_STR['eof']);

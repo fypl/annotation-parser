@@ -28,8 +28,8 @@
 !!<p><span>desc:</span>@desc</p>
 !!<p><span>author:</span>@author.name</p>
 !!<p><span>since:</span>@since.ver</p>
-!!<ul>[list_param]<li><span>@param.id</span> @param.desc</li>[/list]</ul>
+!!<ul>[list-param]<li><span>@param.id</span> @param.desc</li>[/list]</ul>
 !!<p><span>return:</span>@return.desc</p>
-!![list_throws]
+!![list-throws]
 <p><span>throws </span>@throws.desc</p>
 [/list]
