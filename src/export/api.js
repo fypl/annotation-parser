@@ -2,14 +2,14 @@
 
 var fs=require('fs');
 var path=require('path');
-var log=require('./log');
+var log=require('../log');
 var base='';
 var dir='';
 var dirpath='';
 var uniqueTitle={};
 
 //生成Html导航
-module.exports.htmlNav=function(files, targetApiPath){
+module.exports.html=function(files, targetApiNavPath, targetApiPath, htmlFriendly){
 	log('create html nav begin...');
 	base=targetApiPath;
 	var html='<ul>';
@@ -17,10 +17,10 @@ module.exports.htmlNav=function(files, targetApiPath){
 		dir=file.file;
 		dirpath=dir.replace(path.extname(dir),'');
 		uniqueTitle={};
-		html+='<li class="LTop caption"><a class="LTop" href="#'+dir+'" title="'+dir+'">'+dir+'</a>'+createUl(HTMLFriendly(file.annos))+'</li>';
+		html+='<li class="LTop caption"><a class="LTop" href="#'+dir+'" title="'+dir+'">'+dir+'</a>'+createUl(htmlFriendly?HTMLFriendly(file.annos):file.annos)+'</li>';
 	});
 	html+='</ul>';
-	fs.writeFileSync(path.join(base,'nav.html'),html);
+	fs.writeFileSync(path.join(targetApiNavPath,'api.html'),html);
 	log('create html nav end!!!\n');
 }
 
@@ -44,7 +44,7 @@ function createLi(anno){
 	return '<li class="L'+lev+(hasChildren?' caption':'')+'"><a class="L'+lev+'" href="#'+encodeURIComponent(filedir)+'" title="'+title+'">'+title+'</a>'+(hasChildren?createUl(anno.__subAnnos):'')+'</li>';
 }
 //生成json导航
-module.exports.jsonNav=function(files, targetApiPath){
+module.exports.json=function(files, targetApiNavPath, targetApiPath){
 	log('create json nav begin...');
 	base=targetApiPath;
 	var nav=[];
@@ -55,7 +55,7 @@ module.exports.jsonNav=function(files, targetApiPath){
 		nav.push({'file':dir,'subtitles':getSubtitles(file.annos)});
 	});
 	nav=JSON.stringify(nav);
-	fs.writeFileSync(path.join(base, 'nav.json'), nav);
+	fs.writeFileSync(path.join(targetApiNavPath, 'api.json'), nav);
 	log('create json nav end!!!\n');
 }
 function getSubtitles(annos){

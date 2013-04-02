@@ -1,46 +1,61 @@
 'use strict';
 
 var fs   = require('fs');
-var lr   = require('./lineReader');
-var log  = require('./log');
+var lr   = require('../lineReader');
+var log  = require('../log');
 var path = require('path');
-var util = require('./util');
+var util = require('../util');
 
+/*
+ * 提取注释
+ */
 module.exports = function(settings, rules, Anno){
     log('parse annotation begin...');
-    var filepath = path.resolve(__dirname, path.normalize(settings.path));
-    var root = getRootDir(filepath);
-    var files = getAllFiles(filepath);
+    // 获取根目录
+    var root = util.getRootDir(settings.path);
+    // 获取根目录下所有文件
+    var files = util.getAllFiles(settings.path);
+    // 筛选文件
     files = util.filterFile(files, settings.parse_file_type, settings.ignore_file_type);
-    var lineRules=[],multilineRules=[],annoRules=rules.annoRules,codeRules=rules.codeRules,unmarkHandler=rules.unmarkHandler;
+    // 初始化
+    var lineRules=[], multilineRules=[], annoRules=rules.annoRules, codeRules=rules.codeRules, unmarkHandler=rules.unmarkHandler;
+    // 区分单行规则和多行规则
     for(var i=0, ii=annoRules.length; i<ii; i++){
         var rule=annoRules[i];
         if(rule.rule.multiline)multilineRules.push(rule);
         else lineRules.push(rule);
     }
     var res = [];
+    // 按文件提取注释
     for(i=0, ii=files.length; i<ii; i++){
         var annos = parseAnnos(files[i], settings, lineRules, multilineRules, codeRules, unmarkHandler, Anno);
-        res.push({'file':getFileName(files[i], root), 'annos':annos});
+        res.push({'file':util.getFileName(files[i], root), 'annos':annos});
     }
     log('parse annotation end!!!\n');
     return res;
 }
+
+/*
+ * 提取单个文件的注释
+ */
 function parseAnnos(file, settings, lineRules, multilineRules, codeRules, unmarkHandler, Anno){
+    if(file.indexOf('abs.c')>-1){
+        log.info(file);
+    }
     var reader=lr(file, 'utf8', '\n');
     // codeBeforeAnno 特别指第一有意义注释前的代码 例如Java的import，js的require，c++的include 它们通常在第一个有意义的注释前
     // tmpAnno={};存储codeBeforeAnno
     // stack 注释堆栈 引入新的目录算法 解决跳层报错的提示
-    var strictMode=settings.strict_mode, keepCode=settings.keep_code, keepNullString=settings.keep_null_string, keepAnnoStar=settings.keep_anno_star,
+    var keepCode=settings.keep_code, keepAnno=settings.keep_anno, keepAnnoBeforeCode=settings.keep_anno_before_code,
         annos=[], curAnno=null, curLev=-1, ignoreLev=settings.ignore_hierarchy, maxLev=settings.parse_hierarchy, isIgnoreAnno=false,
-        isAnno=false, anno='', brace=0, isCodeString=false, stringQuotes='', arr, markIndex=-1, isRegExp=false, keepCodeAnno=settings.keep_code_anno, codeAnno='',
+        isAnno=false, anno='', brace=0, isCodeString=false, stringQuotes='', arr, markIndex=-1, isRegExp=false, codeAnno='', keepAnnoStar=settings.keep_anno_star,
         ignoreFileLine=settings.ignore_file_line,lineNumber=0,ignoreFirstBoringAnno=settings.ignore_first_boring_anno,codeBeforeAnno='',notBeforeAnnoCodeLine=false,
         smartTitle=settings.smart_title, parseCode=settings.parse_code,tmpAnno={},smartTitleHandler=null,codeLev=0,
         smartHierarchy=settings.smart_hierarchy,extname=path.extname(file).replace(/^\.+/,'').toLowerCase(),stack=[],resetHierarchyLev=settings.reset_hierarchy_lev;
     if(!smartHierarchy){
         ignoreLev=0;keepCode=false;keepCodeAnno=false;maxLev=Number.MAX_VALUE;
     }
-    if(smartTitle)smartTitleHandler=require('./smartTitle')(extname);
+    if(smartTitle)smartTitleHandler=require('../smartTitle')(extname);
     var regExp={
         'ANNO_START':/^\s*\/\*+/,                // 注释开始 匹配/*，/**
         'ANNO_STAR':/^\s*\*+/,                   // 注释行中的前端*, **
@@ -62,25 +77,25 @@ function parseAnnos(file, settings, lineRules, multilineRules, codeRules, unmark
             if(line.match(regExp.ANNO_END))isIgnoreAnno=false;
         }
         else if(isAnno){
-            if(keepCode)addCode(stack, sLine);
-            if(keepCode && keepCodeAnno) codeAnno+=sLine+'\n';
+            addCode(stack, sLine);
+            codeAnno+=sLine+'\n';
             if(line.match(regExp.ANNO_END)){
                 anno=matchMultilineRule(anno, multilineRules, curAnno);
                 completeAnno();
                 continue;
             }
             if(!keepAnnoStar)line=line.replace(regExp.ANNO_STAR, '');
-            if(!matchLineRule(line, lineRules, curAnno) && (keepNullString || !line.match(regExp.NULL_STRING))) anno+=line+'\n';
+            if(!matchLineRule(line, lineRules, curAnno)) anno+=line+'\n';
         }else{
             if(line.match(regExp.ANNO_START)){
-                if(curLev==brace){
+                if(curLev===brace){
                     //log.info('file:'+file+'\nlineNumber:'+lineNumber+'\nline:'+sLine+'\nlev:'+brace);
-                    if(keepCode) checkCode(true);
+                    checkCode(true);
                     stack.pop();
                     setCurAnno();
                 }
                 if(brace<maxLev){
-                    if(keepCode) addCode(stack, sLine);
+                    addCode(stack, sLine);
                     if(brace < ignoreLev || ignoreFirstBoringAnno){
                         if(!line.match(regExp.LINE_ANNO)) isIgnoreAnno=true;
                         ignoreFirstBoringAnno=false;
@@ -91,7 +106,7 @@ function parseAnnos(file, settings, lineRules, multilineRules, codeRules, unmark
                     curAnno.extend(tmpAnno);
                     tmpAnno={};
                     isAnno=true;
-                    if(keepCode && keepCodeAnno)codeAnno+=sLine+'\n';
+                    codeAnno+=sLine+'\n';
                     if(line.match(regExp.LINE_ANNO)){
                         anno=RegExp.$1;
                         anno=matchLineRule(anno, lineRules, curAnno)?'':matchMultilineRule(anno, multilineRules, curAnno);
@@ -133,10 +148,15 @@ function parseAnnos(file, settings, lineRules, multilineRules, codeRules, unmark
                         // }
                         // 第二种情况要求默认开启保留代码 优先级高 影响层次判断
                         if(curLev===brace){
-                            if(keepCode) checkCode(false);
+                            curAnno.__code+=sLine+'\n';
+                            curAnno.__pureCode+=line+'\n';
+                            checkCode(false);
                             if(curAnno.__codeCompleted){
                                 stack.pop();
                                 setCurAnno();
+                            }else{
+                                curAnno.__code=curAnno.__code.slice(0,-(sLine.length+1));
+                                curAnno.__pureCode=curAnno.__pureCode.slice(0,-(line.length+1));
                             }
                         }
                         brace++;break;
@@ -148,27 +168,27 @@ function parseAnnos(file, settings, lineRules, multilineRules, codeRules, unmark
                         // var x=xx;
                         // }
                         if(curLev===brace){
-                            if(keepCode) checkCode(true);
+                            checkCode(true);
                             stack.pop();
                             setCurAnno();
                         }
                         brace--;
                         if(curLev===brace){
                             if(brace<0) log.err('file:'+file+'\nlineNumber:'+lineNumber+'\nline:'+sLine+'\nlev:'+brace);
-                            if(keepCode && curAnno){
+                            if(curAnno){
                                 curAnno.__code+=sLine+'\n';
                                 curAnno.__pureCode+=line+'\n';
                                 checkCode(false);
-                                if(!curAnno.__codeCompleted){
-                                    curAnno.__code=curAnno.__code.slice(0,-(sLine.length+1));
-                                    curAnno.__pureCode=curAnno.__pureCode.slice(0,-(line.length+1));
-                                }else{
+                                if(curAnno.__codeCompleted){
                                     stack.pop();
                                     setCurAnno();
+                                }else{
+                                    curAnno.__code=curAnno.__code.slice(0,-(sLine.length+1));
+                                    curAnno.__pureCode=curAnno.__pureCode.slice(0,-(line.length+1));
                                 }
                             }
                         }
-                        if(keepCode && brace===0 && stack.length===0)notBeforeAnnoCodeLine=true;
+                        if(brace===0 && stack.length===0)notBeforeAnnoCodeLine=true;
                         break;
                     }
                     case '//':{
@@ -212,13 +232,11 @@ function parseAnnos(file, settings, lineRules, multilineRules, codeRules, unmark
                     }
                 }
             }
-            if(keepCode){
-                addCode(stack, sLine);
-                addPureCode(stack, line);
-                if(brace===0 && stack.length===0){
-                    if(notBeforeAnnoCodeLine) notBeforeAnnoCodeLine=false;
-                    else codeBeforeAnno+=sLine+'\n';
-                }
+            addCode(stack, sLine);
+            addPureCode(stack, line);
+            if(brace===0 && stack.length===0){
+                if(notBeforeAnnoCodeLine) notBeforeAnnoCodeLine=false;
+                else codeBeforeAnno+=sLine+'\n';
             }
         }
     }
@@ -229,8 +247,10 @@ function parseAnnos(file, settings, lineRules, multilineRules, codeRules, unmark
         curAnno.__title='';
         curAnno.__lev=curLev;
         curAnno.__pureCode=''; //注释以下的 不包含//注释的代码
-        curAnno.__code=(curLev===0?codeBeforeAnno:'')+codeAnno;
+        curAnno.__code=curLev===0?codeBeforeAnno:'';
+        curAnno.__anno=codeAnno;
         curAnno.__annoNum=getLineCount(curAnno.__code);
+        curAnno.__annoNum2=getLineCount(curAnno.__anno);
         curAnno.__codeCompleted=false;
         curAnno.__subAnnos=[];
         addAnno(annos, stack, curAnno);
@@ -257,7 +277,7 @@ function parseAnnos(file, settings, lineRules, multilineRules, codeRules, unmark
             var firstVisibleCharIndex=(firstVisibleCharArr[0]===';'?1:0)+firstVisibleCharArr.index;
             var validLine=0;
             if(extname.match(/js/i)){
-                validLine=getValidCode2(curAnno.__pureCode, firstVisibleCharIndex, extname);
+                validLine=getValidCode(curAnno.__pureCode, firstVisibleCharIndex, extname);
             }else{
                 // java C++ 或者类似java C++的语言
                 // 取得有效的;
@@ -281,8 +301,34 @@ function parseAnnos(file, settings, lineRules, multilineRules, codeRules, unmark
         }
         if(forceEnd)curAnno.__codeCompleted=true;
     }
+    if(keepCode && keepAnno && keepAnnoBeforeCode) addAnnoToCode(annos);
+    // 调整统一层级
     if(resetHierarchyLev) resetLev(annos);
+    // 去除辅助的参数
+    deleteProperty(annos, ((keepCode?[]:['__code']).concat((keepAnno?[]:['__anno']))).concat(['__pureCode','__codeCompleted','__annoNum','__annoNum2']));
     return annos;
+}
+/*
+ * 清除属性
+ */
+function deleteProperty(annos, propertys){
+    if(annos.length===0 || propertys.length===0) return;
+    annos.forEach(function(anno){
+        propertys.forEach(function(property){
+            if(anno[property]!==undefined) delete anno[property];
+        });
+        deleteProperty(anno.__subAnnos, propertys);
+    });
+}
+/*
+ * 将anno添加到code上
+ */
+function addAnnoToCode(annos){
+    if(annos.length===0) return;
+    annos.forEach(function(anno){
+        anno.__code=anno.__anno+anno.__code;
+        addAnnoToCode(anno.__subAnnos);
+    });
 }
 /*
  * 对层次进行调整
@@ -306,7 +352,7 @@ function resetLev(annos, lev){
 function getSubAnnosAnnoNumCount(curAnno){
     var count=0;
     curAnno.__subAnnos.forEach(function(anno){
-        count+=anno.__annoNum+getSubAnnosAnnoNumCount(anno);
+        count+=anno.__annoNum+anno.__annoNum2+getSubAnnosAnnoNumCount(anno);
     });
     return count;
 }
@@ -387,10 +433,10 @@ function getFirstSemicolonIndex(code, begin, extname){
     return matchIndex;
 }
 /*
- * 取得有效的代码2
+ * 取得有效的代码的行数
  * 按行解析
  */
-function getValidCode2(code, begin, extname){
+function getValidCode(code, begin, extname){
     var REGEXP={
         MARK0:/(\=|\,|\;|\(|\)|\[|\]|\'|\"|\/|\{|\})/g,
         MARK1:/(\'|\")/g,
@@ -498,80 +544,6 @@ function getValidCode2(code, begin, extname){
     return ret;
 }
 /*
- * 取得有效的代码
- */
-function getValidCode(code, begin, extname){
-    var REGEXP={
-        MARK0:/(\=|\,|\;|\(|\)|\[|\]|\'|\"|\{|\})/g,
-        MARK1:/(\'\")/g,
-        MARK2:/(\S)/g
-    };
-    var isStr=false, strChar='', left=0, arr=null, hasEqualSign=false, index=begin, reg=null, matched=false, matchIndex=-1;
-    // ,b=3 去除前面的,
-    reg=REGEXP.MARK2;
-    reg.lastIndex=index;
-    if(arr=reg.exec(code)) if(arr[1]==',') index=arr.index+1;
-    // 取得有效的,||;
-    reg=REGEXP.MARK0;
-    reg.lastIndex=index;
-    while(arr=reg.exec(code)){
-        switch(arr[1]){
-            case '=':{
-                hasEqualSign=true;break;
-            }
-            case ',':
-            case ';':{
-                if(left===0){
-                    matchIndex=arr.index;
-                    matched=true;
-                }
-                break;
-            }
-            case '(':
-            case '[':
-            case '{':{
-                // 没有= 不可能有([
-                if(!hasEqualSign) matched=true;
-                left++;break;
-            }
-            case ')':
-            case ']':
-            case '}':{
-                left--;break;
-            }
-            case '\'':
-            case '"':{
-                if(isStr){
-                    if(arr[1]===strChar && notEscape(code, arr.index-1)){
-                        reg=REGEXP.MARK0;
-                        reg.lastIndex=arr.index+1;
-                        strChar='';
-                        isStr=false;
-                    }
-                }else{
-                    strChar=arr[1];
-                    reg=REGEXP.MARK1;
-                    reg.lastIndex=arr.index+1;
-                    isStr=true;
-                }
-                break;
-            }
-        }
-        if(matched) break;
-    }
-    var ret=0;
-    if(matched && matchIndex>-1){
-        var lastEOL=code.indexOf('\n', matchIndex);
-        arr=-1;
-        do{
-            arr++;
-            arr=code.indexOf('\n',arr)
-            ret++;
-        }while(arr>-1 && arr<lastEOL);
-    }
-    return ret;
-}
-/*
  * 判断是否是正则式开始符号
  */
 function regExpSign(line, extname){
@@ -610,16 +582,25 @@ function regExpSign(line, extname){
         return true;
     }
 }
+/*
+ * 添加纯代码（无注释）
+ */
 function addPureCode(stack, line){
     stack.forEach(function(anno){
         anno.__pureCode+=line+'\n';
     });
 }
+/*
+ * 添加源代码
+ */
 function addCode(stack, line){
     stack.forEach(function(anno){
         anno.__code+=line+'\n';
     });
 }
+/*
+ * 将注释添加到注释树中
+ */
 function addAnno(annos, stack, anno){
     if(!anno.show()) return;
     if(stack.length>0){
@@ -630,6 +611,9 @@ function addAnno(annos, stack, anno){
     }else annos.push(anno);
     stack.push(anno);
 }
+/*
+ * 单行规则匹配
+ */
 function matchLineRule(line, rules, curAnno){
     var matched=false;
     for(var i=0, ii=rules.length; i<ii; i++){
@@ -642,6 +626,9 @@ function matchLineRule(line, rules, curAnno){
     }
     return matched;
 }
+/*
+ * 多行规则匹配
+ */
 function matchMultilineRule(anno, rules, curAnno){
     for(var i=0, ii=rules.length; i<ii; i++){
         var mrule=rules[i], arr, firstS, lastS;
@@ -666,34 +653,17 @@ function matchMultilineRule(anno, rules, curAnno){
     }
     return anno;
 }
+/*
+ * index不是转义符
+ */
 function notEscape(str, index){
     if(index < 0 || str.charAt(index) !== '\\') return true;
     else return needEscape(str, index-1);
 }
+/*
+ * index是转义符
+ */
 function needEscape(str, index){
     if(index < 0 || str.charAt(index) !== '\\') return false;
     else return notEscape(str, index-1);
-}
-function getAllFiles(root){
-    var res = [], stat = fs.lstatSync(root);
-    if(stat.isDirectory()){
-        var files = fs.readdirSync(root);
-        files.forEach(function(file){
-            var pathname=path.normalize(root+path.sep+file);
-            res=res.concat(getAllFiles(pathname));
-        });
-    }else if(stat.isFile()){
-        res.push(root);
-    }
-    return res;
-}
-function getRootDir(filepath){
-    if(fs.lstatSync(filepath).isDirectory()) return filepath;
-    return path.resolve(filepath, '..');
-}
-function getFileName(filename, root){
-    var index=filename.indexOf(root);
-    var name= index==0 ? filename.substr(root.length) : filename;
-    name=name.replace(/(\\|\/)+/g,'.').replace(/^\.+/,'');
-    return name;
 }

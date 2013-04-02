@@ -2,30 +2,30 @@
 
 var fs=require('fs');
 var path=require('path');
-var log=require('./log');
+var log=require('../log');
 var base='';
 var dir='';
 var dirpath='';
 
 //生成html类图
-module.exports.htmlClass=function(files, targetClassPath){
+module.exports.html=function(files, targetClsNavPath, targetClsPath, htmlFriendly){
 	log('create html class begin...');
-	base=targetClassPath;
+	base=targetClsPath;
 	var html='<ul>';
 	files.forEach(function(file){
 		dir=file.file;
 		dirpath=dir.replace(path.extname(dir),'');
 		var filedir=path.join(dirpath+'.'+toDirStr(file.annos[0].getTitle())+'.html');
 		html+='<li><a href="#'+encodeURIComponent(filedir)+'" title="'+dir+'">'+dir+'</a></li>';
-		saveAnnos(HTMLFriendly(file.annos), 'html');
+		saveAnnos(htmlFriendly?HTMLFriendly(file.annos):file.annos, 'html');
 	});
 	html+='</ul>';
-	fs.writeFileSync(path.join(base, 'class.html'), html);
+	fs.writeFileSync(path.join(targetClsNavPath, 'cls.html'), html);
 	log('create html class end!!!\n');
 }
-module.exports.jsonClass=function(files, targetClassPath){
+module.exports.json=function(files, targetClsNavPath, targetClsPath){
 	log('create json class begin...');
-	base=targetClassPath;
+	base=targetClsPath;
 	var json=[];
 	files.forEach(function(file){
 		dir=file.file;
@@ -33,7 +33,7 @@ module.exports.jsonClass=function(files, targetClassPath){
 		json.push(dir);
 		saveAnnos(file.annos, 'json');
 	});
-	fs.writeFileSync(path.join(base, 'class.json'), JSON.stringify(json));
+	fs.writeFileSync(path.join(targetClsNavPath, 'cls.json'), JSON.stringify(json));
 	log('create json class end!!!\n');
 }
 
@@ -83,5 +83,5 @@ function HTMLFriendly(obj){
 	}
 }
 function toDirStr(str){
-	return str.replace(/\s/g,'').replace(/[\\\/\:\*\?\"\<\>\|]/g,'').substr(0,50).replace(/^\.+/,'').replace(/\.+$/,'');
+	return str.replace(/\s+/g,'').replace(/[\\\/\:\*\?\"\<\>\|]/g,'').substr(0,50).replace(/^\.+/,'').replace(/\.+$/,'');
 }

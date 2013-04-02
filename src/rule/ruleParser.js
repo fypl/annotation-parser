@@ -3,6 +3,9 @@
 var lr  = require('../lineReader')
 var log = require('../log');
 
+/*
+ * 解析规则
+ */
 module.exports=function(file, rules, Anno){
 	log('parse rule begin...');
 	var REGEXP={
@@ -39,11 +42,12 @@ module.exports=function(file, rules, Anno){
 				}
 				// 注释结束 生成所有规则
 				createRules(anno, rules.annoRules);
-				// 填充默认属性desc,__lev,__titile,__code,__subAnnos
+				// 填充默认属性desc,__lev,__titile,__code,__anno,__subAnnos
 				anno['desc']={'id':'desc','line':'','prefix':'','multi':false,'multiRule':false,'property':{}};
 				anno['__lev']={'id':'__lev','line':'','prefix':'','multi':false,'multiRule':false,'property':{}};
 				anno['__title']={'id':'__title','line':'','prefix':'','multi':false,'multiRule':false,'property':{}};
 				anno['__code']={'id':'__code','line':'','prefix':'','multi':false,'multiRule':false,'property':{}};
+				anno['__anno']={'id':'__anno','line':'','prefix':'','multi':false,'multiRule':false,'property':{}};
 				anno['__subAnnos']={'id':'__subAnnos','line':'','prefix':'','multi':true,'multiRule':false,'property':{}};
 				curRule=null;
 				isAnno=false;

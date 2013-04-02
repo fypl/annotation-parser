@@ -21,28 +21,24 @@ module.exports={
 
 	///////////////////// 注释解释器相关 /////////////////////////
 	// 要解析文件路径
-	'path':'../material/',
+	'path':'../../material/',
 	// 解析后API文件输出目录
 	'target_api_path':'./api/',
+	// 解析后API文件目录输出目录
+	// 如果不填 则同target_api_path
+	'target_api_nav_path':'',
 	// 解析后class文件输出目录
-	'target_class_path':'./cls/',
-	// 严格模式(注释严格模式) 暂时未实现非严格模式
-	// 严格实例
-	// /*
-	//  * annotation
-	//  */
-	// 非严格实例
-	// [code] /* [annotation]
-	// [annotation]
-	// [annotation] */ [code]
-	'strict_mode':true,
+	'target_cls_path':'./cls/',
+	// 解析后class目录文件输出目录
+	// 如果不填 则同target_cls_path
+	'target_cls_nav_path':'',
 	// 智能断层
-	// 如果设为false 所有跟层,代码相关的设置将不再生效 parse_hierarchy ignore_hierarchy keep_code keep_code_anno smart_title
+	// 如果设为false 所有跟层,代码相关的设置将不再生效 parse_hierarchy ignore_hierarchy keep_code keep_anno smart_title
 	'smart_hierarchy':true,
 	// 解析注释深度 代码有层级结构（例如类函数，有两层结构）其深度可以设为2
 	// 默认为-1 解析所有注释
 	'parse_hierarchy':-1,
-	// 不解析的层次 (因为js存在闭包 第一层无意义)
+	// 不解析的层次 （因为js存在闭包 第一层无意义）
 	'ignore_hierarchy':0,
 	// 如果要解析的文件类型不为空 则忽略不解析文件类型
 	// 要解析的文件类型
@@ -50,9 +46,9 @@ module.exports={
 	// 如果要解析的文件类型为空 则不解析文件类型生效
 	// 不解析的文件类型
 	'ignore_file_type':'txt|html|css|class',
-	// 忽略第一个无意义的注释 (java中可能是版权注释)
+	// 忽略第一个无意义的注释 （java中可能是版权注释）
 	'ignore_first_boring_anno':false,
-	// 忽略文件的开始的行数[1，N] (忽略文件前面的无意义文字，例如版权注释等)
+	// 忽略文件的开始的行数[1，N] （忽略文件前面的无意义文字，例如版权注释等）
 	'ignore_file_line':0,
 	// 智能提取标题 例如类名，函数名
 	'smart_title':true,
@@ -60,24 +56,27 @@ module.exports={
 	// 只处理行代码
 	'parse_code':false,
 	// 是否保留注释对应的代码
-	'keep_code':false,
-	// 是否在保留代码时保留已解析的注释
-	'keep_code_anno':false,
-	// 是否保留注释内容中的星号(不包括首尾的)
+	'keep_code':true,
+	// 是否保留已解析的注释
+	'keep_anno':true,
+	// 是否在代码前添加注释 只有在keep_code和keep_anno设置为true的情况下才生效
+	'keep_anno_before_code':true,
+	// 是否保留注释内容中的星号（不包括首尾的）
 	// /*    不包括
 	//  *    包括
 	//  **   包括
 	// *     包括
 	//  */   不包括
 	'keep_anno_star':false,
-	// 是否保留注释中的空行
-	'keep_null_string':true,
 	// 是否对层级的lev进行统一整理
 	// 因为新算法解决了跳lev的问题 导致同层次会出现不同的lev 这样生成的目录中同层次的class却不一样 这样导致显示效果不一样
-	// 已顶层中最小的lev为起点进行调整
+	// 以顶层中最小的lev为起点进行调整
 	'reset_hierarchy_lev':true,
 
 	///////////////////// 导出的文件相关 /////////////////////////
-	//导出的文件类型
-	'export_file_type':'html|json'
+	// 导出的文件类型
+	'export_file_type':'html|json',
+	// 是否对HTML友好的
+	// 通过对<>进行转义来实现的 只在输出html文件时生效
+	'html_friendly':true
 };
