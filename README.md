@@ -255,11 +255,221 @@ annotation-parser
                            待解析代码文件
                                  ↓                                        toString规则
                    ------------------------------       show规则               ↓
-                   |            解释器           |          ↓          --------------
+                   |           解释器           |          ↓          --------------
                    |----------------------------|    -------------    | 文 |  API  | => api目录以及各个文件
-                   |          |     源码解析     | => | 筛选(show) | => | 本 |-------|
-      定义注释规则 → | 注释解释  |-----------------|    -------------    | 化 | CLASS | => class目录以及各个文件
-                   |          | 解析标题 |代码处理 |                     --------------
+                   |          |     源码解析    | => | 筛选(show)| => | 本 |-------|
+    定义注释规则-> | 注释解释 |-----------------|    -------------    | 化 | CLASS | => class目录以及各个文件
+                   |          |解析标题|代码处理|                     --------------
                    ------------------------------                              ↑
                                   ↑        ↑                          按文件及顶级层次导出
                          定义标题规则    定义代码规则
+
+注释器主要实现框中的功能和一些常用语言的标题规则，用户只需要定义注释规则，show规则，toString规则和可选的代码规则就可以获得一个高度自定义的个人注释解释器。完整的用户定义规则文件如下（java版本）：
+
+    module.exports=function(rules, Anno){
+        function define(annoRule, handler){
+            rules.annoRules.push({'rule':annoRule,'handler':handler,'multiline':annoRule.multiline});
+        }
+        function defineCode(codeRule, handler){
+            rules.codeRules.push({'rule':codeRule,'handler':handler});
+        }
+        define(/@since\s+(.*)\s*/i,function(anno, a1){
+            anno.since=a1;
+        });
+        define(/@author\s+(.*)\s*/i,function(anno, a1){
+            anno.author=a1;
+        });
+        define(/@param\s+(\w+)?\s+(.*)\s*/i,function(anno, a1, a2){
+            if(!anno.param)anno.param=[];
+            anno.param.push({'var':a1,'desc':a2});
+        });
+        define(/@return\s+(.*)\s*/i,function(anno, a1){
+            anno.return=a1;
+        });
+        define(/@throws\s+(.*)\s*/i,function(anno, a1){
+            if(!anno.throws)anno.throws=[];
+            anno.throws.push(a1);
+        });
+        rules.unmarkHandler=function(anno, desc){
+            if(!anno['desc'])anno['desc']=desc;
+            else anno['desc']+=desc;
+        }
+        Anno.prototype.toString=function(){
+            var str='';
+            if(!!this.desc)str+='<p>'+this.desc+'</p>';
+            if(!!this.since)str+='<p>since: '+this.since+'</p>';
+            if(!!this.author)str+='<p>author: '+this.author+'</p>';
+            if(!!this.param){
+                str+='<ul>';
+                this.param.forEach(function(itm){
+                    str+='<li>'+itm.var+': '+itm.desc+'</li>';
+                });
+                str+='</ul>';
+            }
+            if(!!this.return)str+='<p>return: '+this.return+'</p>';
+            if(!!this.throws){
+                str+='<ul>';
+                this.throws.forEach(function(itm){
+                    str+='<li>'+itm+'</li>';
+                });
+                str+='</ul>';
+            }
+            return str;
+        };
+        Anno.prototype.getTitle=function(){
+            if(!this.__title)this.__title=this.autoTitle();     
+            else if(!!this.param){
+                var str='(';
+                for(var i=0,ii=this.param.length;i<ii;i++){
+                    str+=this.param[i]['var'];
+                    if(i!=ii-1)str+=', ';
+                }
+                str+=')';
+                this.__title+=str;
+                this.__getTitle=function(){
+                    return this.__title;
+                }
+            }   
+            return this.__title;
+        }
+        Anno.prototype.show=function(){
+            return true;
+        }
+    };
+
+### 便利的规则定义 ###
+
+要使用本注释解释器，最重要的是要写定义规则文件，而通过分析可以发现，规则文件中有很多重复性的枯燥的代码，让人烦不胜烦。基于此，需要对规则定义文件简化，让用户更加方便自然地书写规则。通过努力，实现了对注释规则，title规则，show规则，toString规则的简化，上面定义文件简化后的代码如下：
+
+    /**
+     * @id-author line-name
+     * @id-since word-ver
+     * @id-param word-id line-desc
+     * @id-param word-id line-desc
+     * @id-return line-desc
+     * @id-throws line-desc
+     * @id-throws line-desc
+     */
+
+    //title规则 输出先存在的属性 都不存在 输出smartTitle
+    [title][/title]
+
+    //show规则 只要该属性存在就show 加感叹号的 只要存在该属性就不输出
+    [show][/show]
+
+    //toString 规则 双感叹号 一定会输出 否则只有对应属性存在才输出
+    <p>@desc</p>
+    <p>since: @since.ver</p>
+    <p>author: @author.name</p>
+    <ul>[list_param]<li><span>@param.id</span> @param.desc</li>[/list]</ul>
+    <p>return: @return.desc</p>
+    <ul>[list_throws]<li>@throws.desc</li>[/list]</ul>
+
+通过对比可以发现，简化后的定义文件精简了许多，基本达到了去除冗余重复性代码的目标，但是也存在一些局限性，主要表现在功能上的削弱，没有那么灵活自由。这是因为在定义定义规则的语言时，增加了一些约束，弱化了定义规则的一部分能力。但是这是可以通过增强定义定义规则的语言的办法来增强定义规则的能力，本解释器也提供了混合模式，用最初那种定义规则的办法来增强定义规则的能力。下面分别从注释规则，title规则，show规则，toString规则来分开讲解如何定义它们。
+
+#### 定义注释规则 ####
+
+注释规则全部包含在一个标准的多行注释中。它通过id-xxx来定义一项注释，通过word-xxx，line-xxx，block-xxx三个来声明其属性。xxx代表以字母下划线开头，后面可接数字下划线字母的不少于一位的，非javascript关键字的标识符，word代表连续的非空的字符串，line代表连续的字符串，block代表跨行的字符串，其中block只运用在多行注释（参照前面的注释三分类）中。
+
+要声明一项注释，必须以id-开头（开头的意思是，前面不能有属性声明，即必须是新的一行），id-前面的字符（注释*空格之后的）为其前缀。前缀和id-建议不要留空，否则空也是前缀。后面开始声明注释的属性，通过word-，line-，block-声明类型加上标识符来唯一标识一项属性。属性之间通过空格或者其它有效的标识（例如$*()+等不混淆词法分析的符号）来分隔开。如果出现了block类型的属性，则代表此项注释为多行注释，需要一个结尾的后缀。后缀是符合一定规则的前缀可以推测出来的。其规则如下xxx为注释的id：
+
++ 如果前缀为空，则后缀为"/xxx"
++ 如果前缀不以<([{开头，则后缀为"/前缀"
++ 否则后缀为"前缀/xxx逆反前缀"
+
+换行和EOF可以结束任何多行注释，这种注释以换行作为注释的结尾。前后缀及换行示例如下
+
+    // 前缀为空
+    /*
+     * id-code block-cnt /code
+     * id-code
+          block-cnt
+     * /code
+     */
+
+    // 前缀不以<([{开头
+    /*
+     * @id-code block-cnt /@
+     * @id-code
+     *    block-cnt
+     * /@
+     */
+
+    // 前缀以<([{开头，逆反类似回文，只是<([{分别由>)]}替换掉了
+    /*
+     * [@%<=id-code=>%@] block-cnt [@%<=/code=>%@]
+     * [@%<=id-code=>%@]
+     *    block-cnt
+     * [@%<=/code=>%@]
+     */
+
+    // 换行和EOF结束多行注释
+    /*
+     * id-code block-cnt EOF
+     * id-code block-cnt
+     *
+     * @id-code block-cnt EOF
+     * @id-code block-cnt
+     *
+     * [@%<=id-code=>%@] block-cnt EOF
+     * [@%<=id-code=>%@] block-cnt
+     *
+     */
+
+有些某项注释可以出现多次，这时只要重复一次注释申明就代表注释可以了。示例如下：
+
+    // 多作者，多代码注释申明
+    /*
+     * id-author line-name
+     * id-author line-name
+     * id-code block-cnt /code
+     * id-code block-cnt /code
+     */
+
+有些注释的某项属性可能是可选出现的，这时需要用##包起来，如果要输出#，用反斜杠注释掉，如果##里面不包含属性申明，则##里面的所有字符串将被忽略掉，前缀中的#不会解析。示例如下：
+
+    // 注释可选属性声明
+    /*
+     * @id-author line-name #(line-mail)#
+     * @id-code #type=word-type#
+     *    block-cnt
+     * /@
+     * @id-method\#line-name\#               //#无效
+     * @id-since #1231# line-ver             //##里面的1231将被忽略
+     * #id-api line-api                      //#不会解析
+     */
+
+#### 定义title规则 ####
+
+titile规则定义包含在[titile][/title]中间，以分割符|分开，要作为title的注释的属性。如果所列的属性都不存在，则输出从源码解析的title，即smartTitle。示例如下：
+
+    /**
+     * @id-author line-name
+     * @id-since word-ver
+     * @id-api line-api
+     * @id-param word-id line-desc
+     * @id-param word-id line-desc
+     * @id-return line-desc
+     * @id-throws line-desc
+     * @id-throws line-desc
+     */
+    // 存在api则输出api.api，存在author就输出author.name，否则就输出__title
+    [title]api.api|author.name[/title]
+
+#### 定义show规则 ####
+
+show规则定义包含在[show][/show]中间，以分割符|分开，依次检查属性，直到为真则输出。如果不配置，则默认为真，输出所有注释。示例如下：
+
+    /*
+     * @id-show
+     * @id-hidden
+     * @id-api
+     * @id-public
+     */
+    // 如果存在show，api，public或者不存在hidden属性，则输出
+    [show]show|api|public|!hidden[/show]
+    // 始终输出
+    [show][/show]
+
+#### 定义toString规则 ####
+
