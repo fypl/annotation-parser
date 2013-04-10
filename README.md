@@ -473,3 +473,30 @@ show规则定义包含在[show][/show]中间，以分割符|分开，依次检�
 
 #### 定义toString规则 ####
 
+toString规则定义包含在规则定义文件的最下面。要输出一个非列表项注释的属性，只需要以"@+注释id+.+注释属性"声明就好。对于列表项注释，需要提前用"[list-列表项注释id]"开始，用"[/list]"结束列表项。定义toString规则实行按行定义的原则，一般一行就是一条规则，除了列表项和可选属性支持多行规则。以!!开始的规则（就是行开头是!!），属于必然输出规则，无论后面的注释项存在否，都会输出。否则，则要判断后面申明的注释项存在，才会输出。对于可选属性的输出，需要用[#][/#]包含起来，存在才输出，否则不输出。示例如下：
+
+    /*
+     * id-author line-name #(line-email)#
+     * id-param word-type line-desc
+     * id-param word-type line-desc
+     * id-code #type="word-type"# block-cnt /code
+     */
+
+    <p>@author.name [#]@author.email[/#]</p>                                          //如果author存在才输出     如果author.email存在才输出可选部分
+    !!<p>@suthor.name [#]@author.email[/#]</p>                                        //一定输出                 如果author.email存在才输出可选部分
+    [#]<h3>@code.type</h3>[/#]                                                        //如果code.type存在才输出可选部分
+    <pre>@code.cnt</pre>                                                              //如果code存在才输出
+    <ul>[list-param]<li>[#]@param.type [/#]@param.desc</li>[/list]</ul>               //一定输出ul               如果param存在才输出列表项注释部分 如果param.type存在才输出可选部分
+    !!<ul>[list-param]                                                                //一定输出ul               如果param存在才输出列表项注释部分 如果param.type存在才输出可选部分 如果去除!!则效果等同于前面的单行写法
+        <li>
+            [#]@param.type [/#]@param.desc
+        </li>[/list]
+    </ul>
+    <ul>@author.name[list-param]<li>[#]@param.type [/#]@param.desc</li>[/list]</ul>   //如果author存在才输出ul   如果param存在才输出列表项注释部分 如果param.type存在才输出可选部分
+    !!<ul>@author.name[list-param]                                                    //一定输出ul               如果param存在才输出列表项注释部分 如果param.type存在才输出可选部分 如果取出!!则效果等同于前面的单行写法
+        <li>
+            [#]@param.type [/#]@param.desc
+        </li>[/list]
+    </ul>
+
+用[list-xxx][/list]以及[#][/#]标识的属性，都是可选的，都是存在才会输出的，并且都不支持各自的循环嵌套，即[#][/#]内部不能嵌套[#][/#]，[list-xxx][/list]内部不能嵌套[list-xxx][/list]。[#][/#]可以直接使用，或者嵌套在[list-xxx][/list]中，但是[#][/#]内部不能嵌套[list-xxx][/list]。
