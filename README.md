@@ -500,3 +500,286 @@ toString规则定义包含在规则定义文件的最下面。要输出一个非
     </ul>
 
 用[list-xxx][/list]以及[#][/#]标识的属性，都是可选的，都是存在才会输出的，并且都不支持各自的循环嵌套，即[#][/#]内部不能嵌套[#][/#]，[list-xxx][/list]内部不能嵌套[list-xxx][/list]。[#][/#]可以直接使用，或者嵌套在[list-xxx][/list]中，但是[#][/#]内部不能嵌套[list-xxx][/list]。
+
+### 配置 ###
+
+通用注释解释器的配置文件，非规则定义。
+
+    /*
+     * 默认配置文件
+     */
+    module.exports={
+
+        // 路径名为相对本本配置文件的路径名或者绝对路径
+
+        ///////////////////// 规则解释器相关 /////////////////////////
+        // 配置规则的模式
+        // 'smart':  智能模式 最方便的模式 通过rule定义语言定义rule
+        // 'default':默认模式 功能最强大的模式 提供codeRule
+        // 'mix':    混合模式 先智能模式后默认模式
+        // 自定义规则和默认规则 只有一个能生效
+        // 当自定义规则存在时 默认规则不生效
+        'rule_module':'smart',
+        // 智能模式下 自定义规则的文件
+        'smart_user_rule':'./user.js',
+        // 智能模式下 默认规则的文件
+        'smart_default_rule':'./default.js',
+        // 默认模式下 自定义规则的文件
+        'default_user_rule':'./user2.js',
+        // 默认模式下 默认规则的文件
+        'default_default_rule':'./default2.js',
+
+        ///////////////////// 注释解释器相关 /////////////////////////
+        // 要解析文件路径
+        'path':'../../material/',
+        // 解析后API文件输出目录
+        'target_api_path':'./api/',
+        // 解析后API文件目录输出目录
+        // 如果不填 则同target_api_path
+        'target_api_nav_path':'',
+        // 解析后class文件输出目录
+        'target_cls_path':'./cls/',
+        // 解析后class目录文件输出目录
+        // 如果不填 则同target_cls_path
+        'target_cls_nav_path':'',
+        // 智能断层
+        // 如果设为false 所有跟层,代码相关的设置将不再生效 parse_hierarchy ignore_hierarchy keep_code keep_anno smart_title
+        'smart_hierarchy':true,
+        // 解析注释深度 代码有层级结构（例如类函数，有两层结构）其深度可以设为2
+        // 默认为-1 解析所有注释
+        'parse_hierarchy':-1,
+        // 不解析的层次 （因为js存在闭包 第一层无意义）
+        'ignore_hierarchy':0,
+        // 如果要解析的文件类型不为空 则忽略不解析文件类型
+        // 要解析的文件类型
+        'parse_file_type':'js|c|java|x',
+        // 如果要解析的文件类型为空 则不解析文件类型生效
+        // 不解析的文件类型
+        'ignore_file_type':'txt|html|css|class',
+        // 忽略第一个无意义的注释 （java中可能是版权注释）
+        'ignore_first_boring_anno':false,
+        // 忽略文件的开始的行数[1，N] （忽略文件前面的无意义文字，例如版权注释等）
+        'ignore_file_line':0,
+        // 智能提取标题 例如类名，函数名
+        'smart_title':true,
+        // 代码解析 代码包含注释
+        // 只处理行代码
+        'parse_code':false,
+        // 是否保留注释对应的代码
+        'keep_code':true,
+        // 是否保留已解析的注释
+        'keep_anno':true,
+        // 是否在代码前添加注释 只有在keep_code和keep_anno设置为true的情况下才生效
+        'keep_anno_before_code':true,
+        // 是否保留注释内容中的星号（不包括首尾的）
+        // /*    不包括
+        //  *    包括
+        //  **   包括
+        // *     包括
+        //  */   不包括
+        'keep_anno_star':false,
+        // 是否对层级的lev进行统一整理
+        // 因为新算法解决了跳lev的问题 导致同层次会出现不同的lev 这样生成的目录中同层次的class却不一样 这样导致显示效果不一样
+        // 以顶层中最小的lev为起点进行调整
+        'reset_hierarchy_lev':true,
+
+        ///////////////////// 导出的文件相关 /////////////////////////
+        // 导出的文件类型
+        'export_file_type':'html|json',
+        // 是否对HTML友好的
+        // 通过对<>进行转义来实现的 只在输出html文件时生效
+        'html_friendly':true
+    };
+
+如何使用
+--------
+
+首先定义规则，其次配置文件，最后运行程序就可以了。
+
+### 定义规则范例 ###
+
+smart模式范例
+
+    /**
+     * @id-author line-name
+     * @id-version word-ver
+     * @id-since word-ver
+     * @id-api {word-api}
+     * @id-see {word-api}
+     * @id-type {word-type}
+     * @id-const {line-con}
+     * @id-param {word-type} line-desc
+     * @id-param {word-type} line-desc
+     * @id-return {word-type} line-desc
+     * @id-throw word-type line-desc
+     * [id-code #type="word-type"#]
+     * block-cnt
+     * [/code]
+     * [id-code #type="word-type"#]
+     * block-cnt
+     * [/code]
+     */
+
+    //title规则 输出先存在的属性 都不存在 输出smartTitle
+    [title]api.api|const.con|desc[/title]
+    //show规则 只要该属性存在就show 加感叹号的 只要存在该属性就不输出
+    [show]api|author|const|desc[/show]
+
+    //toString 规则 双感叹号 一定会输出 否则只有对应属性存在才输出
+    <pre>@__code</pre>
+    <p>=====================================================================================</p>
+    <p>desc: @desc</p>
+    <p>author: @author.name</p>
+    <p>version: @version.ver</p>
+    <p>since: @since.ver</p>
+    <p>api: @api.api</p>
+    <p>see: @see.api</p>
+    <p>type: @type.type</p>
+    <p>const: @const.con</p>
+    <p>return: @return.type @return.desc</p>
+    <ul>[list-param]<li>param-type: @param.type; param-desc:param.desc</li>[/list]</ul>
+    [list-code]
+        [#]<p>title:@code.title</p>[/#]
+        [#]<p>type:@code.type</p>[/#]
+        <pre>@code.cnt</pre>
+    [/list]
+
+default模式范例
+
+    module.exports=function(rules, Anno){
+        function define(annoRule, handler){
+            rules.annoRules.push({'rule':annoRule,'handler':handler,'multiline':annoRule.multiline});
+        }
+        function defineCode(codeRule, handler){
+            rules.codeRules.push({'rule':codeRule,'handler':handler});
+        }
+        define(/@version\s*(.*)\s*/i,function(anno, a1){
+            anno['version']=a1;
+        });
+        define(/@author\s*(.*)\s*/i,function(anno, a1){
+            anno['author']=a1;
+        });
+        define(/\s*(页面)?结构举例\s*\[code\s*.*\](\s*(\r\n|.)*?)\s*\[\/code\]\s*/im,function(anno, a1, a2){
+            anno['html']=a2;
+        });
+        define(/\s*脚本举例\s*\[code\s*.*\](\s*(\r\n|.)*?)\s*\[\/code\]\s*/im,function(anno, a1){
+            anno['js']=a1;
+        });
+        define(/@see\s*\{(.*)\}\s*/i,function(anno, a1){
+            anno['see']=a1;
+        });
+        define(/@api\s*\{(.*)\}\s*/i,function(anno, a1){
+            anno['api']=a1;
+        });
+        define(/@type\s*\{(.*)\}\s*/i,function(anno, a1){
+            anno['type']=a1;
+        });
+        define(/@const\s*\{(.*)\}\s*/i,function(anno, a1){
+            anno['const']=a1;
+        });
+        define(/@return\s*\{(.*)\}\s*(.*)/i,function(anno, a1, a2){
+            anno['return']={'type':a1,'desc':a2};
+        });
+        define(/@param\s*\{(.*)\}\s*(.*)/i,function(anno, a1, a2){
+            if(!anno['param'])anno['param']=[];
+            anno['param'].push({'type':a1,'desc':a2});
+        });
+        rules.unmarkHandler=function(anno, desc){
+            if(!anno['desc'])anno['desc']=desc;
+            else anno['desc']+=desc;
+        }
+        Anno.prototype.toString=function(){
+            var str="";
+            if(!!this['desc'])str+='<p>desc: '+this['desc']+'</p>';
+            if(!!this['version'])str+='<p>version: '+this['version']+'</p>';
+            if(!!this['author'])str+='<p>author: '+this['author']+'</p>';
+            if(!!this['html'])str+='<pre>'+this['html'].replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</pre>';
+            if(!!this['js'])str+='<pre>'+this['js'].replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</pre>';
+            if(!!this['see'])str+='<p>see: '+this['see']+'</p>';
+            if(!!this['api'])str+='<p>api: '+this['api']+'</p>';
+            if(!!this['type'])str+='<p>type: '+this['type']+'</p>';
+            if(!!this['const'])str+='<p>const: '+this['const']+'</p>';
+            if(!!this['param']){
+                str+='<ul>';
+                for(var i=0,ii=this['param'].length;i<ii;i++)str+='<li>param: '+this['param'][i]['type']+" "+this['param'][i]['desc']+'</li>';
+                str+='</ul>';
+            } 
+            if(!!this['return'])str+='<p>return: '+this['return']['type']+" "+this['return']['desc']+"</p>";
+            if(!!this.__lev)str+='<p>lev: '+this.__lev+'</p>';
+            if(!!this.__title)str+='<p>author: '+this.__title+'</p>';
+            if(!!this.__code)str+='<pre>'+this.__code+'</pre>';
+            if(!!this.__subAnnos && this.__subAnnos.length>0){
+                str+='<ul>';
+                this.__subAnnos.forEach(function(anno){
+                    str+='<li class="subAnno">'+anno.toString()+'</li>';
+                });
+                str+='</ul>';
+            }
+            return str;
+        };
+        Anno.prototype.__getTitle=function(){
+            return this['api'];
+        }
+        Anno.prototype.show=function(){
+            return (this['api'] || this['author']);
+        }
+    };
+
+### 配置文件范例 ###
+
+只需要配置所需的属性就好，其它的可以采用默认配置。
+
+    /*
+     * 用户自定义配置文件
+     */
+    module.exports={
+
+        // 路径名为相对本本配置文件的路径名或者绝对路径
+        
+        ///////////////////// 规则解释器相关 /////////////////////////
+        // 配置规则的模式
+        // 'smart':  智能模式 最方便的模式 通过rule定义语言定义rule
+        // 'default':默认模式 功能最强大的模式 提供codeRule
+        // 'mix':    混合模式 先智能模式后默认模式
+        // 自定义规则和默认规则 只有一个能生效
+        // 当自定义规则存在时 默认规则不生效
+        'rule_module':'smart',
+        // 智能模式下 自定义规则的文件
+        'smart_user_rule':'../rule/default.js',
+        // 智能模式下 默认规则的文件
+        'smart_default_rule':'../rule/default.js',
+        // 默认模式下 自定义规则的文件
+        'default_user_rule':'../rule/user4.js',
+        // 默认模式下 默认规则的文件
+        'default_default_rule':'../rule/default2.js',
+        // 忽略第一个无意义的注释 （可能是版权注释）
+        'ignore_first_boring_anno':false,
+        // 解析后API文件输出目录
+        'target_api_path':'../../../lemon/public/res/api/',
+        // 解析后class文件输出目录
+        'target_cls_path':'../../../lemon/public/res/cls/',
+        // 解析后API文件目录输出目录
+        // 如果不填 则同target_api_path
+        'target_api_nav_path':'../../../lemon/dev/',
+        // 解析后class目录文件输出目录
+        // 如果不填 则同target_cls_path
+        'target_cls_nav_path':'../../../lemon/dev/',
+        // 智能断层
+        // 如果设为false 所有跟层,代码相关的设置将不再生效 parse_hierarchy ignore_hierarchy keep_code keep_anno smart_title
+        'smart_hierarchy':true,
+        // 是否保留注释对应的代码
+        'keep_code':true,
+        // 是否保留已解析的注释
+        'keep_anno':true,
+        // 是否在代码前添加注释 只有在keep_code和keep_anno设置为true的情况下才生效
+        'keep_anno_before_code':true,
+        // 智能提取标题 例如类名，函数名
+        'smart_title':true,
+        // 是否对HTML友好的
+        // 通过对<>进行转义来实现的 只在输出html文件时生效
+        'html_friendly':false
+    };
+
+### 运行程序 ###
+
+以管理员权限运行node app就可以了
