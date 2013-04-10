@@ -327,8 +327,9 @@ function createRule(rule, annoRules){
         'eof':'(\\n[ \\t]*){2,}'
 	};
 	var REGEXP=/((id|word|line|block)-([a-zA-Z_][a-zA-Z0-9_]*))|(#)|(\s+(EOF\b))/g;
-	var arr=null, index=0, args=[], isChooseArg=false, chooseArg=[], chooseArgLine='', chooseIndex=0, escapeCharCount=0, offset=0,
+	var arr=null, index=escape(rule.prefix).length, args=[], isChooseArg=false, chooseArg=[], chooseArgLine='', chooseIndex=0, escapeCharCount=0, offset=0,
 		keepBottomNullString=false;
+	REGEXP.lastIndex=index;
 	while(arr=REGEXP.exec(line)){
 		index=arr.index;
 		switch(arr[2]){
